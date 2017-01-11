@@ -9,6 +9,13 @@ from user import User
 from post import Post
 from comment import Comment
 from like import Like
+from login import Login
+from signup import Signup
+from editcomment import EditComment
+from editpost import EditPost
+from deletepost import DeletePost
+from deletecomment import DeleteComment
+from newpost import NewPost
 import myHelper
 
 secret = 'secured_secured'
@@ -176,145 +183,6 @@ class PostPage(BlogHandler):
                     comments=comments, noOfLikes=likes.count(),
                     new=c)
 
-
-class NewPost(BlogHandler):
-    def get(self):
-        if self.user:
-            self.render("newpost.html")
-        else:
-            self.redirect("/login")
-
-    def post(self):
-        """
-            Creates new post and redirect to new post page.
-        """
-        if not self.user:
-            self.redirect('/blog')
-
-        subject = self.request.get('subject')
-        content = self.request.get('content')
-
-        if subject and content:
-            p = Post(parent=blog_key(), user_id=self.user.key().id(),
-                     subject=subject, content=content)
-            p.put()
-            self.redirect('/blog/%s' % str(p.key().id()))
-        else:
-            error = "subject and content, please!"
-            self.render("newpost.html", subject=subject,
-                        content=content, error=error)
-
-
-class DeletePost(BlogHandler):
-    def get(self, post_id):
-        if self.user:
-            key = db.Key.from_path('Post', int(post_id), parent=blog_key())
-            post = db.get(key)
-            if post.user_id == self.user.key().id():
-                post.delete()
-                self.redirect("/?deleted_post_id="+post_id)
-            else:
-                self.redirect("/blog/" + post_id + "?error=You don't have " +
-                              "access to delete this record.")
-        else:
-            self.redirect("/login?error=You need to be logged, in order" +
-                          " to delete your post!!")
-
-
-class EditPost(BlogHandler):
-    def get(self, post_id):
-        if self.user:
-            key = db.Key.from_path('Post', int(post_id), parent=blog_key())
-            post = db.get(key)
-            if post.user_id == self.user.key().id():
-                self.render("editpost.html", subject=post.subject,
-                            content=post.content)
-            else:
-                self.redirect("/blog/" + post_id + "?error=You don't have " +
-                              "access to edit this record.")
-        else:
-            self.redirect("/login?error=You need to be logged, " +
-                          "in order to edit your post!!")
-
-    def post(self, post_id):
-        """
-            Updates post.
-        """
-        if not self.user:
-            self.redirect('/blog')
-
-        subject = self.request.get('subject')
-        content = self.request.get('content')
-
-        if subject and content:
-            key = db.Key.from_path('Post', int(post_id), parent=blog_key())
-            post = db.get(key)
-            post.subject = subject
-            post.content = content
-            post.put()
-            self.redirect('/blog/%s' % post_id)
-        else:
-            error = "subject and content, please!"
-            self.render("editpost.html", subject=subject,
-                        content=content, error=error)
-
-
-class DeleteComment(BlogHandler):
-
-    def get(self, post_id, comment_id):
-        if self.user:
-            key = db.Key.from_path('Comment', int(comment_id),
-                                   parent=blog_key())
-            c = db.get(key)
-            if c.user_id == self.user.key().id():
-                c.delete()
-                self.redirect("/blog/"+post_id+"?deleted_comment_id=" +
-                              comment_id)
-            else:
-                self.redirect("/blog/" + post_id + "?error=You don't have " +
-                              "access to delete this comment.")
-        else:
-            self.redirect("/login?error=You need to be logged, in order to " +
-                          "delete your comment!!")
-
-
-class EditComment(BlogHandler):
-    def get(self, post_id, comment_id):
-        if self.user:
-            key = db.Key.from_path('Comment', int(comment_id),
-                                   parent=blog_key())
-            c = db.get(key)
-            if c.user_id == self.user.key().id():
-                self.render("editcomment.html", comment=c.comment)
-            else:
-                self.redirect("/blog/" + post_id +
-                              "?error=You don't have access to edit this " +
-                              "comment.")
-        else:
-            self.redirect("/login?error=You need to be logged, in order to" +
-                          " edit your post!!")
-
-    def post(self, post_id, comment_id):
-        """
-            Updates post.
-        """
-        if not self.user:
-            self.redirect('/blog')
-
-        comment = self.request.get('comment')
-
-        if comment:
-            key = db.Key.from_path('Comment',
-                                   int(comment_id), parent=blog_key())
-            c = db.get(key)
-            c.comment = comment
-            c.put()
-            self.redirect('/blog/%s' % post_id)
-        else:
-            error = "subject and content, please!"
-            self.render("editpost.html", subject=subject,
-                        content=content, error=error)
-
 USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
 
 
@@ -332,83 +200,6 @@ EMAIL_RE = re.compile(r'^[\S]+@[\S]+\.[\S]+$')
 
 def valid_email(email):
     return not email or EMAIL_RE.match(email)
-
-
-class Signup(BlogHandler):
-    def get(self):
-        self.render("signup-form.html")
-
-    def post(self):
-        """
-            Sign up validation.
-        """
-        have_error = False
-        self.username = self.request.get('username')
-        self.password = self.request.get('password')
-        self.verify = self.request.get('verify')
-        self.email = self.request.get('email')
-
-        params = dict(username=self.username,
-                      email=self.email)
-
-        if not valid_username(self.username):
-            params['error_username'] = "That's not a valid username."
-            have_error = True
-
-        if not valid_password(self.password):
-            params['error_password'] = "That wasn't a valid password."
-            have_error = True
-        elif self.password != self.verify:
-            params['error_verify'] = "Your passwords didn't match."
-            have_error = True
-
-        if not valid_email(self.email):
-            params['error_email'] = "That's not a valid email."
-            have_error = True
-
-        if have_error:
-            self.render('signup-form.html', **params)
-        else:
-            self.done()
-
-    def done(self, *a, **kw):
-        raise NotImplementedError
-
-
-class Register(Signup):
-    def done(self):
-        # Make sure the user doesn't already exist
-        u = User.by_name(self.username)
-        if u:
-            msg = 'That user already exists.'
-            self.render('signup-form.html', error_username=msg)
-        else:
-            u = User.register(self.username, self.password, self.email)
-            u.put()
-
-            self.login(u)
-            self.redirect('/')
-
-
-class Login(BlogHandler):
-    def get(self):
-        self.render('login-form.html', error=self.request.get('error'))
-
-    def post(self):
-        """
-            Login validation.
-        """
-        username = self.request.get('username')
-        password = self.request.get('password')
-
-        u = User.login(username, password)
-        if u:
-            self.login(u)
-            self.redirect('/')
-        else:
-            msg = 'Invalid login'
-            self.render('login-form.html', error=msg)
-
 
 class Logout(BlogHandler):
     def get(self):
